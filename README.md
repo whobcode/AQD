@@ -1,52 +1,31 @@
-# Air Quality Dashboard
+# Air Quality Dashboard (AQD)
 
-**Category**: Web Frontend
+Real-time air-quality (AQI) dashboard with AI-powered health recommendations, running entirely
+on Cloudflare Workers (TypeScript + Hono + Workers AI). Static dashboard served from the assets
+binding; the Worker proxies the WAQI API and generates health advice with Workers AI.
 
-A modern web dashboard for visualizing real-time air quality data with AI-powered health recommendations.
+## Features
+- Look up live AQI by city name or your geolocation (WAQI data)
+- Color-coded AQI category (Good → Hazardous) and pollutant breakdown chart (Chart.js)
+- AI health recommendations for the current conditions (Llama 3.1 on Workers AI)
 
-## Features (Planned)
-- Real-time AQI visualization with interactive charts
-- Interactive maps showing pollution levels by region
-- AI-powered personalized health recommendations using Cloudflare Workers AI
-- 24-hour air quality forecasting
-- Location-based alerts and notifications
-- Historical data trends and analysis
-
-## Tech Stack
-- React 18 + Vite
-- Tailwind CSS for styling
-- Recharts/Chart.js for data visualization
-- Leaflet for interactive maps
-- Cloudflare Workers AI for predictions
-- WAQI API for air quality data
-
-## Getting Started
-
+## Setup
 ```bash
 npm install
+cp .dev.vars.example .dev.vars   # add your free WAQI token
 npm run dev
 ```
+Get a free WAQI token at https://aqicn.org/data-platform/token/
 
-## Environment Variables
-
-```env
-VITE_WAQI_API_KEY=your_waqi_token
-VITE_CF_ACCOUNT_ID=your_cloudflare_account_id
+## Deploy
+```bash
+wrangler secret put WAQI_TOKEN
+npm run deploy
 ```
 
-## Project Structure
+## API
+- `GET /api/aqi?city=beijing` or `?lat=..&lon=..` → current AQI + pollutants
+- `GET /api/advice?city=beijing` → AI health recommendations
 
-```
-AQD/
-├── src/
-│   ├── components/     # React components
-│   ├── hooks/          # Custom React hooks
-│   ├── services/       # API services
-│   └── utils/          # Utility functions
-├── public/             # Static assets
-└── package.json
-```
-
-## License
-
-MIT
+## Stack
+Cloudflare Workers · Hono · Workers AI · Chart.js · WAQI API
