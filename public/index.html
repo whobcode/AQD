@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Air Quality Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root { font-family: system-ui, sans-serif; }
+  body { margin:0; background:#0b1020; color:#e8ecf4; }
+  header { padding:1.5rem; text-align:center; }
+  h1 { margin:0 0 .25rem; font-size:1.6rem; }
+  .sub { color:#90a0c0; font-size:.9rem; }
+  .wrap { max-width:860px; margin:0 auto; padding:0 1rem 3rem; }
+  .row { display:flex; gap:.5rem; margin:1rem 0; }
+  input { flex:1; padding:.7rem .9rem; border-radius:10px; border:1px solid #26304d; background:#121831; color:#fff; font-size:1rem; }
+  button { padding:.7rem 1.1rem; border:0; border-radius:10px; background:#3b82f6; color:#fff; font-weight:600; cursor:pointer; }
+  button:hover { background:#2563eb; }
+  .cards { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+  .card { background:#121831; border:1px solid #26304d; border-radius:14px; padding:1.2rem; }
+  .aqi-num { font-size:3.2rem; font-weight:800; line-height:1; }
+  .badge { display:inline-block; padding:.25rem .6rem; border-radius:999px; font-weight:700; color:#0b1020; margin-top:.4rem; }
+  .muted { color:#90a0c0; font-size:.85rem; }
+  #advice { white-space:pre-wrap; line-height:1.5; }
+  .err { color:#ff7a90; }
+  @media(max-width:640px){ .cards{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+<header>
+  <h1>🌬️ Air Quality Dashboard</h1>
+  <div class="sub">Real-time AQI + AI health recommendations · Cloudflare Workers</div>
+</header>
+<div class="wrap">
+  <div class="row">
+    <input id="city" placeholder="Enter a city (e.g. beijing, london, los angeles)" />
+    <button id="go">Check</button>
+    <button id="geo" title="Use my location">📍</button>
+  </div>
+  <div id="error" class="err"></div>
+  <div class="cards">
+    <div class="card">
+      <div class="muted" id="cityName">—</div>
+      <div class="aqi-num" id="aqi">—</div>
+      <span class="badge" id="cat" style="display:none"></span>
+      <div class="muted" id="time" style="margin-top:.6rem"></div>
+      <div class="muted" id="pol"></div>
+    </div>
+    <div class="card"><canvas id="chart" height="180"></canvas></div>
+  </div>
+  <div class="card" style="margin-top:1rem">
+    <strong>AI Health Recommendations</strong>
+    <button id="adviceBtn" style="float:right">Get advice</button>
+    <p id="advice" class="muted">Search a city, then get tailored guidance.</p>
+  </div>
+</div>
+<script>
+let chart;
+const $ = (id) => document.getElementById(id);
+async function lookup(params) {
+  $("error").textContent = "";
+  try {
+    const r = await fetch("/api/aqi?" + params);
+    const d = await r.json();
+    if (d.error) { $("error").textContent = d.error; return; }
+    $("cityName").textContent = d.city;
+    $("aqi").textContent = d.aqi;
+    const cat = $("cat"); cat.textContent = d.category.label; cat.style.background = d.category.color; cat.style.display = "inline-block";
+    $("aqi").style.color = d.category.color;
+    $("time").textContent = "Updated " + d.time;
+    $("pol").textContent = "Dominant pollutant: " + (d.dominentpol || "n/a");
+    drawChart(d.iaqi);
+    window.__lastCity = d.city;
+  } catch (e) { $("error").textContent = String(e); }
+}
+function drawChart(iaqi) {
+  const keys = ["pm25","pm10","o3","no2","so2","co"];
+  const labels = [], data = [];
+  keys.forEach(k => { if (iaqi[k]) { labels.push(k.toUpperCase()); data.push(iaqi[k].v); } });
+  if (chart) chart.destroy();
+  chart = new Chart($("chart"), {
+    type: "bar",
+    data: { labels, datasets: [{ label: "Concentration", data, backgroundColor: "#3b82f6" }] },
+    options: { plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:"#90a0c0"}}, y:{ticks:{color:"#90a0c0"}} } }
+  });
+}
+$("go").onclick = () => { const c = $("city").value.trim(); if (c) lookup("city=" + encodeURIComponent(c)); };
+$("city").addEventListener("keydown", e => { if (e.key === "Enter") $("go").click(); });
+$("geo").onclick = () => navigator.geolocation.getCurrentPosition(
+  p => lookup(`lat=${p.coords.latitude}&lon=${p.coords.longitude}`),
+  () => $("error").textContent = "Location denied"
+);
+$("adviceBtn").onclick = async () => {
+  const c = window.__lastCity || $("city").value.trim();
+  if (!c) { $("error").textContent = "Search a city first"; return; }
+  $("advice").textContent = "Thinking…";
+  try {
+    const r = await fetch("/api/advice?city=" + encodeURIComponent(c));
+    const d = await r.json();
+    $("advice").textContent = d.error ? d.error : d.advice;
+  } catch (e) { $("advice").textContent = String(e); }
+};
+</script>
+</body>
+</html>
